@@ -1,6 +1,6 @@
 const Batch = require("../schemas/batch.schema");
 const SemesterDetail = require("../schemas/semesterdetail.schmea");
-
+const mongoose = require('mongoose');
 // ✅ Get all semesters
 const getAllSemesters = async (req, res) => {
     try {
@@ -49,6 +49,7 @@ const addSemester = async (req, res) => {
     try {
         const { batch, semester, course } = req.body;
 
+        console.log(batch, semester, course);
         if (!batch || !semester || !course) {
             return res.status(400).json({ msg: "Batch, semester, and course are required." });
         }
@@ -63,17 +64,49 @@ const addSemester = async (req, res) => {
     }
 };
 
+const addSemfunction = async (batch, semester, course) => {
+    try {
+        // Ensure batch is a string before validation
+        if (typeof batch !== "string") {
+            throw new Error("Batch ID must be a string");
+        }
+
+        // Validate batch ID format
+        if (!mongoose.Types.ObjectId.isValid(batch)) {
+            throw new Error("Invalid batch ID format");
+        }
+
+        // Create and save new semester
+        const newSemester = new SemesterDetail({
+            batch: new mongoose.Types.ObjectId(batch), // Convert to ObjectId
+            semester,
+            course,
+            subjects: []
+        });
+
+        await newSemester.save();
+        return newSemester;
+    } catch (err) {
+        console.error("Error adding semester:", err.message);
+        throw new Error(err.message); // Return error to the calling function
+    }
+};
+
 // ✅ Add a subject to a semester
 const addSubjectToSemester = async (req, res) => {
     try {
         const { batch, semester, subjectId } = req.body;
 
-        const sem = await SemesterDetail.findOne({ batch, semester });
+        let sem = await SemesterDetail.findOne({ batch, semester });
+        const batchData = await Batch.findById(batch);
 
+        console.log(batch, semester, subjectId,batchData);
         if (!sem) {
-            return res.status(404).json({ msg: "Semester not found." });
+            // return res.status(404).json({ msg: "Semester not found." });
+            await addSemfunction(batch,semester,batchData.course)
         }
-
+        sem = await SemesterDetail.findOne({ batch, semester });
+        console.log(sem);
         sem.subjects.push(subjectId);
         await sem.save();
 
@@ -88,7 +121,7 @@ const addSubjectToSemester = async (req, res) => {
 const removeSubjectFromSemester = async (req, res) => {
     try {
         const { batch, semester, subjectId } = req.body;
-
+        console.log(batch, semester)
         const sem = await SemesterDetail.findOne({ batch, semester });
 
         if (!sem) {
